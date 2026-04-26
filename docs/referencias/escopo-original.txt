@@ -1,0 +1,195 @@
+1. Visão Geral do Produto
+Desenvolva um aplicativo mobile simples e intuitivo para gestão de rifas/sorteios (estilo operação de balcão) utilizando React Native (JavaScript). O app será voltado para três perfis de usuário: Admin, Vendedor e Cliente, com foco em experiência fluida mesmo em ambientes com conectividade instável (offline-first quando viável). O backend principal será o Firebase (Firestore, Authentication, Functions, Messaging), seguindo uma arquitetura em camadas (presentation/domain/data) e UI híbrida por módulos.
+
+2. Perfis de Usuário e Requisitos de Experiência
+Vendedor: vende números do sorteio para clientes de forma rápida e segura. A interface deve permitir visualizar pendências, confirmar pagamentos, cancelar vendas e criar novos clientes sem interromper sua sessão.
+
+Cliente: acompanha seus bilhetes e resultados em tempo real, sem necessidade de botão de atualização manual. A experiência deve ser reativa e direta.
+
+Admin: gerencia sorteios, vendedores e visualiza indicadores financeiros (dashboard com métricas, exportação de dados).
+
+Simplicidade e intuição: as telas de vendedor e cliente devem ter fluxos claros, com o mínimo de atritos, botões grandes e ações óbvias. O design deve ser limpo e funcional.
+
+3. Stack Técnica e Padrões
+Framework: React Native (JavaScript) com React Hooks.
+
+Gerenciamento de estado: Context API + hooks customizados (ou Redux Toolkit apenas se necessário para casos complexos).
+
+Navegação: React Navigation (stack, tab, drawer conforme cada perfil). Deve-se evitar empilhamentos incorretos usando navigate com controle de stack e reset quando apropriado.
+
+Backend: Firebase SDK (Auth, Firestore, Functions, Messaging).
+
+Cloud Functions: para operações sensíveis (criação de cliente, sorteio oficial, expiração de pendências).
+
+Regras de segurança: Firestore Rules robustas, restritas por perfil e proprietário, com validação de transições de estado de vendas.
+
+Ambiente de desenvolvimento: suporte a emuladores Firebase via configuração de build/env.
+
+Arquitetura: Código modular, separado em camadas: presentation (telas e componentes), domain (modelos, serviços abstratos) e data (repositories que encapsulam chamadas ao Firebase). Utilize o padrão repository/service/hooks.
+
+4. Funcionalidades Detalhadas
+4.1 Autenticação e Sessão
+Login via Firebase Auth (email/senha).
+
+Após login, carregar perfil do usuário da coleção usuarios/{uid} (campos: tipo: admin, vendedor, cliente, e outros dados cadastrais).
+
+Controle de acesso baseado no tipo, tanto no front‑end (navegação condicional) quanto nas regras de segurança do Firestore.
+
+Login Dev: implementar um login rápido para testes (ex.: um botão "Entrar como Dev" que autentica um usuário de teste pré-cadastrado, permitindo alternar entre perfis sem precisar criar contas reais). Esse login deve estar disponível apenas em ambiente de desenvolvimento (controlado por flag de build).
+
+4.2 Navegação Estável e Badge de Pendências
+Rotas centralizadas por perfil: Admin, Vendedor e Cliente.
+
+Vendedor deve ter um fluxo dedicado para "Pendências", acessível via menu inferior ou ícone de sininho.
+
+Exibir um badge em tempo real no menu do vendedor com a contagem de vendas pendentes (usando listener do Firestore, query filtrada por statusPagamento == pendente do vendedor logado).
+
+4.3 Criação de Cliente sem Derrubar Sessão
+Via Cloud Function callable criarCliente.
+
+A function recebe: nome, email, CPF, telefone.
+
+Senha inicial = 6 últimos dígitos do CPF (apenas números, com validação de formato antes do envio).
+
+A function cria o usuário no Firebase Auth (com admin.auth().createUser()) e persiste dados em usuarios/{uid}.
+
+O vendedor permanece logado (a chamada da function não interfere na sessão atual).
+
+Tratar erros como e‑mail já cadastrado com mensagem amigável.
+
+4.4 Venda Transacional (Core Business)
+Criar venda de forma atômica via transação do Firestore (runTransaction).
+
+Escritas consistentes em:
+
+vendas/{vendaId} (documento da venda)
+
+sorteios/{sorteioId}/numeros/{numero} (atualiza status do número)
+
+sorteios/{sorteioId}/participantes/{clienteId} (adiciona cliente como participante)
+
+auditoria/{logId} (registro de auditoria)
+
+Lógica de proteção contra race condition:
+
+Lê o documento do número selecionado.
+Verifica se o campo status é disponivel.
+Se não estiver disponível, aborta a transação com uma mensagem de erro amigável ("Número já foi vendido").
+A venda nasce com statusPagamento = pendente e o número com status reservado.
+
+4.5 Ciclo de Pagamento
+Ações do vendedor sobre uma venda pendente:
+
+Confirmar PIX: atualiza statusPagamento para pago e número para vendido. Deve ser executada em transação ou batch atômico.
+
+Cancelar venda: atualiza statusPagamento para cancelada e número para disponivel. Também atômica.
+
+Tratamento explícito de offline: quando a operação falhar com erro UNAVAILABLE, exibir uma UX amigável (snackbar/toast informando "Sem conexão, tente novamente") e permitir nova tentativa.
+
+4.6 Expiração Automática de Pendências
+Cloud Functions com Task Queue (ou Cloud Scheduler + Pub/Sub) para liberar vendas pendentes após o tempo estipulado (ex.: 15 minutos).
+
+Fallback com scheduler cron para saneamento periódico (garantia de consistência).
+
+Lógica idempotente e transacional:
+
+Consulta vendas pendentes com timestamp anterior ao limite.
+
+Atualiza o documento da venda para cancelada e libera o número de volta para disponivel.
+
+Registra ação em auditoria.
+
+A function deve ser capaz de lidar com múltiplas execuções sem efeitos colaterais.
+
+4.7 Experiência do Cliente em Tempo Real
+Os bilhetes do cliente devem ser atualizados reativamente via listeners em tempo real do Firestore (onSnapshot).
+
+Não deve haver botão de "atualizar" manual.
+
+Queries: sorteios/{sorteioId}/numeros filtrando por clienteId ou usando uma subcoleção/mapa que reflita a posse do número.
+
+4.8 Performance com Grande Volume de Bilhetes
+Utilizar FlatList ou SectionList com virtualização para listagem de números/vendas.
+
+keyExtractor estável e imutável.
+
+Paginação lógica (cursores) nas leituras do Firestore, evitando carregar todos os dados de uma vez.
+
+Campo de busca com debounce (300ms) e filtro em memória com useMemo para evitar re-renderizações desnecessárias.
+
+Componentes leves, evitando aninhamentos profundos, para suportar milhares de itens sem travamentos.
+
+4.9 Comprovante de Venda e Compartilhamento
+Geração de comprovante em formato PDF ou imagem (PNG) a partir dos dados da venda.
+
+Salvamento temporário no cache do app (pasta temporária).
+
+Compartilhamento nativo via API Share (ou biblioteca react-native-share).
+
+Garantir compatibilidade com Android e iOS e solicitar as permissões de armazenamento apenas se estritamente necessário (no iOS geralmente não precisa para compartilhamento temporário).
+
+4.10 Dashboard Financeiro do Admin
+Tela de métricas do sorteio atual (em tempo real, se viável com listeners curtos):
+
+Total arrecadado (soma dos valores das vendas pagas).
+
+Total pendente (soma das vendas com status pendente).
+
+Bilhetes vendidos vs. disponíveis (contagem de status vendido e disponivel).
+
+Utilizar agregações do Firestore (ex.: sum e count via queries com campos agregados ou Cloud Functions que mantêm um documento de métricas, para reduzir leitura massiva).
+
+Exportação CSV: botão que gera um arquivo CSV com as vendas pagas do sorteio, disparando uma Cloud Function que retorna os dados ou compila no client (a depender do volume). O arquivo deve ser compartilhado/salvo.
+
+4.11 Sorteio Oficial e Auditável
+Cloud Function callable realizarSorteio (acessível apenas por Admin).
+
+Passos:
+
+Buscar todos os números do sorteio com status = vendido.
+Selecionar um número aleatório usando crypto.randomInt do Node.js (segurança criptográfica).
+Persistir o ganhador no documento do sorteio e marcar o sorteio como finalizado.
+Registrar em auditoria.
+O resultado deve ser auditável, com registro do algoritmo e do seed utilizado (se aplicável).
+
+4.12 Segurança de Dados (Firestore Rules)
+Regras de acesso granulares:
+
+Vendedor só pode ler/escrever vendas que ele próprio criou.
+
+Admin pode ler tudo; pode escrever em configurações de sorteio e usuários.
+
+Cliente só pode ler seus próprios bilhetes (números onde clienteId é o seu UID).
+
+Validação de transições de estado: o campo statusPagamento de uma venda só pode mudar de pendente para pago ou cancelada e apenas pelo vendedor dono ou admin.
+
+Suporte a collectionGroup("numeros") com regra curinga, garantindo que a consulta seja restrita ao sorteio/perfil correto.
+
+Campos sensíveis (como CPF) protegidos contra leitura indevida.
+
+5. Requisitos de Qualidade
+Tratamento de erros com mensagens amigáveis e em português para o usuário final (ex.: "Não foi possível concluir a venda. Verifique sua conexão.").
+
+Logs úteis para diagnóstico, porém sem expor dados sensíveis no console.
+
+Todas as operações críticas (venda, pagamento, cancelamento, sorteio, liberação de pendência) devem ser atômicas e transacionais.
+
+Nenhuma lógica sensível no cliente que possa ser burlada (decisões de autorização, validação de disponibilidade de número, sorteio aleatório).
+
+Código modular, com responsabilidades divididas entre Hooks (lógica de UI), Services (regras de negócio) e Repositories (acesso a dados do Firebase). Testabilidade deve ser facilitada por esta separação.
+
+6. Pendências Técnicas e Evolução
+Remover resquícios de código legado ou bibliotecas não utilizadas ao final de cada sprint.
+
+Manter documentação técnica atualizada no repositório, explicando a arquitetura Firebase-first, as decisões de design e instruções para rodar com emuladores.
+
+Preparar o app para possível adição futura de notificações push (FCM) para lembrar clientes de sorteios ou pagamentos (configuração básica já pode ser incluída).
+
+7. Ambiente de Desenvolvimento e Teste
+Configurar emuladores Firebase (Auth, Firestore, Functions) para desenvolvimento local.
+
+Disponibilizar um login dev (ex.: botão "Login Dev" na tela de login, visível apenas em builds de debug) que automaticamente autentica um usuário de teste com perfil selecionável (admin/vendedor/cliente). Os usuários de teste devem ser criados via seed do emulador ou script auxiliar.
+
+O app deve ser testável em ambos iOS e Android, garantindo a mesma experiência simples e intuitiva.
+
+Resultado esperado: Um aplicativo funcional, seguro, com interface agradável e operação fluida para balcão, pronto para ser usado por vendedores e clientes reais, com um painel administrativo completo. O código deve ser limpo, bem organizado e seguir os padrões definidos.

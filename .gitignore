@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+functions/node_modules/
+
+# Build / generated
+dist/
+web-build/
+functions/lib/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# Expo / Metro / local caches
+.expo/
+.expo-shared/
+.metro-health-check*
+.cache/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.p8
+*.crt
+*.cer
+*secret*
+*secrets*
+serviceAccount*.json
+firebase-adminsdk*.json
+
+# Firebase local emulator/runtime data
+emulator-data/
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+functions-debug.log
+database-debug.log
+pubsub-debug.log
+storage-debug.log
+*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
