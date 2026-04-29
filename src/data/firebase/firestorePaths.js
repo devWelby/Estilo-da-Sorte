@@ -1,4 +1,6 @@
 export const paths = {
+  setting: (id) => `configuracoes/${id}`,
+  settings: 'configuracoes',
   user: (uid) => `usuarios/${uid}`,
   users: 'usuarios',
   lotteries: 'sorteios',

@@ -6,20 +6,26 @@ import SectionHeader from '../../components/SectionHeader';
 import MetricCard from '../../components/MetricCard';
 import AppButton from '../../components/AppButton';
 import EmptyState from '../../components/EmptyState';
+import AnimatedEntrance from '../../components/AnimatedEntrance';
 import { routes } from '../../../constants/routes';
 import { colors } from '../../../constants/colors';
 import { useLotteries } from '../../../hooks/useLotteries';
 import { formatCurrency } from '../../../utils/formatters';
 import { reactivateAllSales, runOfficialDraw } from '../../../data/repositories/lotteryRepository';
+import { sendTestNotification } from '../../../data/repositories/notificationRepository';
 import { useAuth } from '../../../hooks/useAuth';
 
+function isOpenLottery(item) {
+  return ['aberto', 'ativo', 'pausado', 'emSorteio'].includes(item.status);
+}
+
 export default function AdminHomeScreen({ navigation }) {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const { items } = useLotteries();
   const [expanded, setExpanded] = useState({ vendas: false, resultados: false });
 
-  const active = useMemo(() => items.filter((item) => item.status === 'ativo'), [items]);
-  const inactive = useMemo(() => items.filter((item) => item.status !== 'ativo'), [items]);
+  const active = useMemo(() => items.filter((item) => isOpenLottery(item)), [items]);
+  const inactive = useMemo(() => items.filter((item) => !isOpenLottery(item)), [items]);
   const current = active[0];
 
   async function handleReactivate() {
@@ -28,7 +34,7 @@ export default function AdminHomeScreen({ navigation }) {
       await reactivateAllSales(current.id);
       Alert.alert('Pronto', 'Vendas reativadas para o sorteio atual.');
     } catch (error) {
-      Alert.alert('Erro', error?.message || 'Não foi possível reativar.');
+      Alert.alert('Erro', error?.message || 'Nao foi possivel reativar.');
     }
   }
 
@@ -36,53 +42,84 @@ export default function AdminHomeScreen({ navigation }) {
     if (!current?.id) return;
     try {
       const result = await runOfficialDraw(current.id);
-      Alert.alert('Sorteio realizado', `Número ganhador: ${result.numero}`);
+      Alert.alert('Sorteio realizado', `Numero ganhador: ${result.numero}`);
     } catch (error) {
-      Alert.alert('Erro', error?.message || 'Não foi possível realizar o sorteio.');
+      Alert.alert('Erro', error?.message || 'Nao foi possivel realizar o sorteio.');
+    }
+  }
+
+  async function handleTestPush() {
+    if (!user?.uid) return;
+    try {
+      const response = await sendTestNotification(
+        user.uid,
+        'Push de teste',
+        'Cloud Messaging conectado com sucesso.',
+        { scope: 'admin-home' }
+      );
+      Alert.alert('Push', `Notificacoes enviadas: ${response?.sent || 0}`);
+    } catch (error) {
+      Alert.alert('Erro', error?.message || 'Falha ao enviar push de teste.');
     }
   }
 
   return (
     <Screen>
-      <Text style={styles.header}>Sorteios Ativos</Text>
-      {active.length ? active.map((lottery) => (
-        <LotteryCard key={lottery.id} lottery={lottery} active onPress={() => navigation.navigate(routes.ADMIN_EDIT_LOTTERY, { lottery })} />
+      <AnimatedEntrance>
+        <Text style={styles.header}>Sorteios ativos</Text>
+      </AnimatedEntrance>
+
+      {active.length ? active.map((lottery, index) => (
+        <AnimatedEntrance key={lottery.id} delay={index * 45}>
+          <LotteryCard lottery={lottery} active onPress={() => navigation.navigate(routes.ADMIN_EDIT_LOTTERY, { lottery })} />
+        </AnimatedEntrance>
       )) : <EmptyState title="Nenhum sorteio ativo." />}
 
-      <Text style={styles.header}>Sorteios Inativos</Text>
+      <Text style={[styles.header, styles.headerGap]}>Sorteios inativos</Text>
       {inactive.map((lottery) => (
         <LotteryCard key={lottery.id} lottery={lottery} onPress={() => navigation.navigate(routes.ADMIN_EDIT_LOTTERY, { lottery })} />
       ))}
 
       {current && (
         <View style={styles.currentBox}>
-          <Text style={styles.currentTitle}>Sorteio atual</Text>
-          <Text style={styles.currentPrize}>Prêmio {formatCurrency(current.premioDinheiro)}</Text>
+          <Text style={styles.currentTitle}>Sorteio em destaque</Text>
+          <Text style={styles.currentPrize}>{formatCurrency(current.premioDinheiro || 0)}</Text>
           <AppButton title="Reativar todas as vendas" variant="outline" onPress={handleReactivate} />
           <AppButton title="Realizar sorteio oficial" onPress={handleDraw} />
         </View>
       )}
 
-      <SectionHeader title="Vendas do Sorteio Atual" expanded={expanded.vendas} onPress={() => setExpanded((s) => ({ ...s, vendas: !s.vendas }))} />
+      <SectionHeader
+        title="Usuarios aguardando liberacao"
+        expanded={false}
+        onPress={() => navigation.navigate(routes.ADMIN_PENDING_USERS)}
+      />
+      <SectionHeader
+        title="Vendedores"
+        expanded={false}
+        onPress={() => navigation.navigate(routes.ADMIN_SELLERS)}
+      />
+
+      <SectionHeader title="Vendas do sorteio atual" expanded={expanded.vendas} onPress={() => setExpanded((s) => ({ ...s, vendas: !s.vendas }))} />
       {expanded.vendas && current && (
         <View style={styles.metricsBox}>
-          <Text style={styles.reportTitle}>Relatório completo</Text>
+          <Text style={styles.reportTitle}>Relatorio completo</Text>
           <View style={styles.metricRow}>
-            <MetricCard active label="DISTRIBUÍDOS" value={`${current.metricas?.distribuidos || 0} Bilhetes`} />
-            <MetricCard label="VENDIDOS" value={`${current.metricas?.vendidos || 0} Bilhetes`} />
+            <MetricCard active label="Distribuidos" value={`${current.metricas?.distribuidos || 0} bilhetes`} />
+            <MetricCard label="Vendidos" value={`${current.metricas?.vendidos || 0} bilhetes`} />
           </View>
           <View style={styles.metricRow}>
-            <MetricCard active label="PAGOS" value={`${current.metricas?.pagos || 0} Bilhetes`} />
-            <MetricCard label="AGUARDANDO" value={`${current.metricas?.pendentes || 0} Bilhetes`} />
+            <MetricCard active label="Pagos" value={`${current.metricas?.pagos || 0} bilhetes`} />
+            <MetricCard label="Aguardando" value={`${current.metricas?.pendentes || 0} bilhetes`} />
           </View>
           <View style={styles.metricRow}>
-            <MetricCard active label="PAGOS" value={formatCurrency(current.metricas?.valorPago || 0)} />
-            <MetricCard label="AGUARDANDO" value={formatCurrency(current.metricas?.valorPendente || 0)} />
+            <MetricCard active label="Pagos" value={formatCurrency(current.metricas?.valorPago || 0)} />
+            <MetricCard label="Aguardando" value={formatCurrency(current.metricas?.valorPendente || 0)} />
           </View>
         </View>
       )}
 
-      <SectionHeader title="Últimos Resultados" expanded={expanded.resultados} onPress={() => setExpanded((s) => ({ ...s, resultados: !s.resultados }))} />
+      <SectionHeader title="Ultimos resultados" expanded={expanded.resultados} onPress={() => setExpanded((s) => ({ ...s, resultados: !s.resultados }))} />
       {expanded.resultados && inactive.filter((item) => item.resultado).map((lottery) => (
         <View key={lottery.id} style={styles.resultCard}>
           <Text style={styles.resultTop}>{formatCurrency(lottery.premioDinheiro)}</Text>
@@ -92,6 +129,7 @@ export default function AdminHomeScreen({ navigation }) {
         </View>
       ))}
 
+      <AppButton title="Enviar push de teste" variant="outline" onPress={handleTestPush} />
       <AppButton title="Sair" variant="outline" onPress={signOut} />
     </Screen>
   );
@@ -99,37 +137,44 @@ export default function AdminHomeScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   header: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: '900',
     color: colors.text,
-    textAlign: 'center',
-    marginTop: 20,
-    marginBottom: 12
+    marginTop: 6,
+    marginBottom: 8
+  },
+  headerGap: {
+    marginTop: 18
   },
   currentBox: {
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    borderRadius: 16,
+    borderWidth: 1.4,
+    borderColor: '#F2B9BF',
+    backgroundColor: '#FFF9FA',
+    borderRadius: 20,
     padding: 16,
-    marginTop: 24
+    marginTop: 22
   },
   currentTitle: {
     color: colors.primary,
     fontWeight: '900',
-    fontSize: 24,
+    fontSize: 20,
     textAlign: 'center'
   },
   currentPrize: {
-    color: colors.primary,
+    color: colors.text,
     fontWeight: '900',
-    fontSize: 28,
+    fontSize: 34,
     textAlign: 'center',
-    marginVertical: 12
+    marginTop: 8,
+    marginBottom: 10
   },
   metricsBox: {
     backgroundColor: colors.surface,
-    marginTop: 12,
-    padding: 10
+    marginTop: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 16
   },
   reportTitle: {
     color: colors.primary,
@@ -143,7 +188,9 @@ const styles = StyleSheet.create({
   },
   resultCard: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 18,
     padding: 20,
     marginTop: 12
   },
@@ -157,11 +204,11 @@ const styles = StyleSheet.create({
     marginTop: 16,
     backgroundColor: colors.primary,
     color: '#FFF',
-    fontSize: 52,
+    fontSize: 50,
     fontWeight: '900',
     textAlign: 'center',
-    letterSpacing: 12,
-    borderRadius: 12,
+    letterSpacing: 10,
+    borderRadius: 14,
     paddingVertical: 22
   },
   resultPerson: {
@@ -169,6 +216,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     textAlign: 'center',
     fontSize: 20,
-    marginTop: 12
+    marginTop: 10
   }
 });

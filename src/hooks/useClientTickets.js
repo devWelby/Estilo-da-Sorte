@@ -6,7 +6,11 @@ export function useClientTickets(clienteId) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!clienteId) return undefined;
+    if (!clienteId) {
+      setLoading(false);
+      return undefined;
+    }
+
     return observeClientTickets(clienteId, (items) => {
       setTickets(items);
       setLoading(false);

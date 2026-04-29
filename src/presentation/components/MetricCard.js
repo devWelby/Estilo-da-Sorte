@@ -14,25 +14,30 @@ export default function MetricCard({ label, value, active = false }) {
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    minHeight: 90,
+    minHeight: 96,
     backgroundColor: colors.surfaceWarm,
-    borderRadius: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#ECE6D5',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 10,
-    margin: 8
+    padding: 12,
+    margin: 6
   },
   active: {
-    backgroundColor: colors.primary
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
   },
   label: {
-    fontSize: 14,
+    fontSize: 12,
     color: colors.text,
-    textAlign: 'center'
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6
   },
   value: {
-    marginTop: 6,
-    fontSize: 20,
+    marginTop: 7,
+    fontSize: 18,
     color: colors.primary,
     fontWeight: '900',
     textAlign: 'center'

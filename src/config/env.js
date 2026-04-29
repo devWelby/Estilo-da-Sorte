@@ -14,5 +14,13 @@ export const ENV = {
     functionsPort: Number(process.env.EXPO_PUBLIC_FUNCTIONS_EMULATOR_PORT || 5101)
   },
   useEmulators: process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATORS === 'true',
-  devLoginEnabled: process.env.EXPO_PUBLIC_DEV_LOGIN_ENABLED !== 'false'
+  allowProdProjectWithEmulators: process.env.EXPO_PUBLIC_ALLOW_PROD_PROJECT_WITH_EMULATORS === 'true',
+  devLoginEnabled: false,
+  enableDevLogin: __DEV__ && process.env.EXPO_PUBLIC_DEV_LOGIN_ENABLED === 'true',
+  devFcmToken: process.env.EXPO_PUBLIC_DEV_FCM_TOKEN || '',
+  devBootstrapSecret: process.env.EXPO_PUBLIC_DEV_BOOTSTRAP_SECRET || 'estilo-local-bootstrap'
+};
+
+export const Config = {
+  ENABLE_DEV_LOGIN: ENV.enableDevLogin
 };

@@ -17,8 +17,8 @@ export default function SellerCreateCustomerScreen({ navigation }) {
   async function handleSave() {
     try {
       setLoading(true);
-      const result = await registerCustomer({ nome, email, cpf, telefone });
-      Alert.alert('Cliente criado', `Senha inicial: ${result.senhaInicial}`);
+      await registerCustomer({ nome, email, cpf, telefone });
+      Alert.alert('Cliente criado', 'Senha inicial enviada para o e-mail informado.');
       navigation.goBack();
     } catch (error) {
       Alert.alert('Erro', friendlyFirebaseError(error));

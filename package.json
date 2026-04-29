@@ -5,11 +5,27 @@
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
+    "start:dev": "set EXPO_PUBLIC_USE_FIREBASE_EMULATORS=true&& expo start",
+    "start:prod": "set EXPO_PUBLIC_USE_FIREBASE_EMULATORS=false&& expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "emulators": "firebase emulators:start --import=./emulator-data --export-on-exit=./emulator-data",
     "seed": "node functions/seedEmulator.js",
+    "test:kill-ports": "node tests/helpers/killTestPorts.js",
+    "test:check-java": "node tests/helpers/checkJavaVersion.js",
+    "test:seed": "node tests/helpers/seedTestData.js",
+    "test:rules:run": "mocha tests/rules/**/*.test.js --timeout 20000",
+    "test:functions:run": "mocha tests/functions/**/*.test.js --timeout 30000",
+    "test:rules": "npm run test:check-java && npm run test:kill-ports && firebase emulators:exec --project estilo-da-sorte-5f684 --config firebase.test.json --only firestore \"set FIRESTORE_EMULATOR_HOST=127.0.0.1:8388&& npm run test:rules:run\"",
+    "test:functions": "npm run test:check-java && npm run test:kill-ports && firebase emulators:exec --project estilo-da-sorte-5f684 --config firebase.test.json --only auth,firestore,functions \"set FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9399&& set FIREBASE_FUNCTIONS_EMULATOR_HOST=127.0.0.1:5301&& set FIRESTORE_EMULATOR_HOST=127.0.0.1:8388&& npm run test:seed && npm run test:functions:run\"",
+    "test:emulators": "npm run test:check-java && npm run test:kill-ports && firebase emulators:exec --project estilo-da-sorte-5f684 --config firebase.test.json --only auth,firestore,functions \"set FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9399&& set FIREBASE_FUNCTIONS_EMULATOR_HOST=127.0.0.1:5301&& set FIRESTORE_EMULATOR_HOST=127.0.0.1:8388&& npm run test:seed && npm run test:functions:run && npm run test:rules:run\"",
+    "deploy:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/deploy-dev.ps1",
+    "deploy:dev:quick": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/deploy-dev.ps1 -SkipLint -SkipTests",
+    "deploy:dev:dry-run": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/deploy-dev.ps1 -SkipLint -SkipTests -DryRun",
+    "dev:up": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-up.ps1",
+    "dev:up:clean": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-up.ps1 -CleanPorts",
+    "dev:infra": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-up.ps1 -NoExpo",
     "lint": "node -e \"require('fs').readdirSync('src'); console.log('OK: estrutura src encontrada')\"",
     "generate:numbers": "node scripts/generateNumbers.js"
   },
@@ -30,7 +46,10 @@
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "chai": "^4.4.1",
     "firebase-admin": "^12.5.0",
-    "firebase-tools": "^13.17.0"
+    "firebase-tools": "^13.17.0",
+    "mocha": "^10.7.3"
   }
 }

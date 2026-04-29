@@ -1,12 +1,8 @@
 import {
-  addDoc,
   collection,
-  doc,
   onSnapshot,
   orderBy,
   query,
-  serverTimestamp,
-  setDoc,
   where
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -34,7 +30,7 @@ export function observeActiveLotteries(callback, onError) {
 export function observeFinishedLotteries(callback, onError) {
   const q = query(
     collection(db, paths.lotteries),
-    where('status', 'in', ['finalizado', 'inativo']),
+    where('status', 'in', ['finalizado', 'cancelado', 'inativo']),
     orderBy('dataSorteio', 'desc')
   );
   return onSnapshot(q, (snapshot) => {
@@ -43,22 +39,9 @@ export function observeFinishedLotteries(callback, onError) {
 }
 
 export async function saveLottery(payload, id) {
-  const base = {
-    ...payload,
-    updatedAt: serverTimestamp()
-  };
-
-  if (id) {
-    await setDoc(doc(db, paths.lottery(id)), base, { merge: true });
-    return id;
-  }
-
-  const ref = await addDoc(collection(db, paths.lotteries), {
-    ...base,
-    status: payload.status || 'ativo',
-    createdAt: serverTimestamp()
-  });
-  return ref.id;
+  const callable = httpsCallable(functions, 'salvarSorteioAdmin');
+  const result = await callable({ ...payload, sorteioId: id || '' });
+  return result?.data?.sorteioId;
 }
 
 export async function reactivateAllSales(sorteioId) {
@@ -69,6 +52,12 @@ export async function reactivateAllSales(sorteioId) {
 
 export async function runOfficialDraw(sorteioId) {
   const callable = httpsCallable(functions, 'realizarSorteio');
+  const result = await callable({ sorteioId });
+  return result.data;
+}
+
+export async function recalculateLotteryMetrics(sorteioId) {
+  const callable = httpsCallable(functions, 'recalcularMetricasSorteio');
   const result = await callable({ sorteioId });
   return result.data;
 }

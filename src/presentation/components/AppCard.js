@@ -9,14 +9,16 @@ export default function AppCard({ children, style, warm = false, outline = false
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
     marginVertical: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2
+    borderWidth: 1,
+    borderColor: '#ECE7DF',
+    shadowColor: '#1A1A1A',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3
   },
   warm: {
     backgroundColor: colors.surfaceWarm

@@ -1,131 +1,266 @@
-# Estilo da Sorte — React Native + Firebase
+# Estilo da Sorte RN + Firebase
 
-Projeto base completo para um aplicativo de gestão de rifas/sorteios com perfis **Admin**, **Vendedor** e **Cliente**.
+Aplicativo React Native (Expo) com backend Firebase para operacao de rifas/sorteios com perfis `admin`, `vendedor` e `cliente`.
 
-Este pacote foi gerado a partir do escopo enviado: React Native com JavaScript, Firebase Authentication, Firestore, Cloud Functions, regras de segurança, login dev, fluxo de vendas, painel administrativo, vendedores, clientes, resultados e métricas.
+## Arquitetura
 
-> Observação: este ZIP é uma base funcional e organizada para iniciar/testar o projeto. Ele não substitui o repositório original caso você já tenha telas em Kotlin/Android Studio. Para migrar ou conectar com um app Kotlin existente, use as Cloud Functions e o modelo de dados deste projeto como backend.
+Estrutura em camadas:
 
-## Estrutura
+- `src/presentation`: telas, componentes e navegacao
+- `src/domain`: regras de negocio e servicos
+- `src/data`: repositorios Firebase
+- `functions`: Cloud Functions (backend serverless)
 
-```txt
-estilo-da-sorte-rn-firebase/
-├── App.js
-├── app.json
-├── package.json
-├── firebase.json
-├── firestore.rules
-├── firestore.indexes.json
-├── functions/
-│   ├── index.js
-│   ├── package.json
-│   └── seedEmulator.js
-└── src/
-    ├── app/
-    ├── config/
-    ├── constants/
-    ├── context/
-    ├── data/
-    ├── domain/
-    ├── hooks/
-    ├── navigation/
-    ├── presentation/
-    └── utils/
+## Modelo Firestore
+
+Colecoes principais:
+
+- `configuracoes/app`: metadados gerais da aplicacao
+- `configuracoes/sorteio_atual`: ponteiro para sorteio corrente
+- `configuracoes/versao_app`: `versaoAtual`, `urlAtualizacao`, `forcarAtualizacao`
+- `configuracoes/limites`: limites dinamicos (ex.: expiracao de pendencias)
+- `configuracoes/versao_banco`: versionamento de schema (`schemaVersion`)
+- `usuarios/{uid}`: dados publicos de perfil (`nome`, `email`, `tipo`, `telefone`, timestamps)
+- `usuarios/{uid}/pushTokens/{tokenId}`: tokens FCM ativos por usuario
+- `usuarios_privados/{uid}`: dados sensiveis (`cpf`, `cpfMascarado`)
+- `sorteios/{sorteioId}`: metadados do sorteio (`codigoSorteio`, `status`, `statusLegado`, `ganhadorId`, `metrics`)
+- `sorteios/{sorteioId}/numeros/{numeroId}`: cartela (`status`, `clienteId`, `vendaId`, `sorteioId`, `reservadoEm`, `expiracaoReserva`)
+- `sorteios/{sorteioId}/participantes/{clienteId}`: consolidado (`quantidadeNumeros`, `valorTotal`, `ultimaCompraEm`, `vendasIds`)
+- `sorteios/{sorteioId}/metrics/current`: snapshot de metricas
+- `vendas/{vendaId}`: vendas (`status`, `statusPagamento`, `statusVenda`, `quantidade`, `valorUnitario`, `valorTotal`, `comissaoAplicada`)
+- `auditoria/{logId}`: trilha de auditoria de operacoes criticas
+
+Documento de referencia (analise completa + modelo profissional v3):
+
+- `docs/FIRESTORE_MODELO_PROFISSIONAL_V3.md`
+
+Status de negocio:
+
+- Sorteio: `rascunho`, `aberto`, `pausado`, `emSorteio`, `finalizado`, `cancelado`
+- Numero: `disponivel`, `reservado`, `vendido`
+- Venda/Pagamento: `pendente`, `pago`, `cancelado`, `estornado`
+
+Compatibilidade de transicao:
+
+- Campo novo principal: `vendas.status`
+- Campos legados mantidos durante migracao: `statusPagamento` e `statusVenda`
+- Cloud Functions escrevem os 3 campos de forma sincronizada para evitar quebra no front-end legado
+
+## Regras e Indices
+
+Arquivos versionados:
+
+- `firestore.rules`
+- `firestore.indexes.json`
+
+Deploy:
+
+```bash
+firebase deploy --only firestore
 ```
 
-## Requisitos
+## Cloud Functions
 
-- Node.js 20+
-- npm
-- Expo CLI via `npx expo`
-- Firebase CLI: `npm install -g firebase-tools`
-- Conta/projeto Firebase, ou emuladores locais para teste.
+Callables principais (`functions/index.js`):
 
-## Como rodar localmente com emuladores
+- `criarCliente`
+- `listarClientes`
+- `criarVenda`
+- `confirmarPagamento`
+- `cancelarVenda`
+- `realizarSorteio`
+- `exportarVendasCSV`
+- `recalcularMetricasSorteio`
+- `reativarTodasVendas`
+- `migrarSchemaFirestore`
+- `registrarTokenPush`
+- `removerTokenPush`
+- `enviarNotificacaoTeste`
+- `bootstrapDevData` (somente emulator, para auto-recuperacao de base dev)
 
-1. Instale as dependências do app:
+Triggers:
+
+- `expirarPendencias` (cron a cada 5 minutos)
+- `notificarMudancaVenda` (onUpdate em `vendas/{vendaId}`)
+
+Deploy:
+
+```bash
+firebase deploy --only functions
+```
+
+## Cloud Messaging
+
+Fluxo atual:
+
+1. App registra token via callable `registrarTokenPush`.
+2. Admin pode enviar push de teste para si pelo botao em `AdminHome`.
+3. Mudancas de `statusPagamento` em vendas disparam push automatico para vendedor e cliente.
+
+## Endurecimento de seguranca (PR1)
+
+- `criarCliente` e `criarVendedor` agora usam senha temporaria aleatoria forte (nao derivada de CPF).
+- Novos usuarios saem com `mustChangePassword: true` (perfil + custom claims) para fluxo de troca obrigatoria.
+- Callables criticas possuem rate limit por usuario autenticado:
+  - `criarCliente`, `criarVendedor`, `criarVenda`, `confirmarPagamento`, `cancelarVenda`, `realizarSorteio`, `exportarVendasCSV`, `reativarTodasVendas`.
+- `devLogin` fica bloqueado fora de `__DEV__` + emulador + flag `EXPO_PUBLIC_DEV_LOGIN_ENABLED`.
+
+Variavel opcional para registrar token manual em dev:
+
+```env
+EXPO_PUBLIC_DEV_FCM_TOKEN=
+```
+
+## Testes (Emulator Suite)
+
+Scripts:
+
+- `npm run test:rules`
+- `npm run test:functions`
+- `npm run test:emulators`
+
+Prerequisito importante:
+
+- Use Java LTS (`17` ou `21`) para o Firestore Emulator. Java muito novo (ex.: `26`) pode encerrar o emulador com `exit code 1`.
+
+Conteudo da suite:
+
+- `tests/rules/firestore.rules.test.js`: acesso por perfil, `collectionGroup`, transicao de pagamento
+- `tests/functions/functions.emulator.test.js`: criar cliente, corrida de venda no mesmo numero, transicao invalida
+
+Observacao: o `test:emulators` exige Firestore Emulator inicializando corretamente em Java suportado. Se houver erro de porta/Java no ambiente local, rode ao menos `test:rules` (ja funcional) e ajuste sua JDK para uma versao suportada pelo Firebase Emulator Suite.
+
+## Migracao Incremental de Schema
+
+Passos recomendados sem quebra:
+
+1. Deploy de regras, indices e functions novas.
+2. Executar `migrarSchemaFirestore` em lotes no ambiente de dev ate `hasMore=false`.
+3. Validar telas principais (venda, pendencias, bilhetes, dashboard).
+4. Repetir no ambiente de producao em janela controlada.
+
+Exemplo de chamada (admin autenticado no app):
+
+- Callable: `migrarSchemaFirestore`
+- Payload sugerido: `{ \"batchSize\": 120, \"cursor\": {} }`
+- Reutilizar `nextCursor` da resposta nas chamadas seguintes.
+
+Opcoes da migracao:
+
+- `removePublicPii` (default `true`): remove `cpfCliente/telefoneCliente` de `numeros` e `cpf/telefone` de `participantes`
+- `enrichAuditMetadata` (default `true`): adiciona `entidadeTipo`, `entidadeId` e `source` em `auditoria`
+
+## Deploy DEV
+
+Script unico de deploy com validacoes:
+
+```bash
+npm run deploy:dev
+```
+
+Versao rapida (sem lint e sem testes):
+
+```bash
+npm run deploy:dev:quick
+```
+
+Validacao sem publicar:
+
+```bash
+npm run deploy:dev:dry-run
+```
+
+Checklist detalhado:
+
+- `docs/DEPLOY_DEV_CHECKLIST.md`
+
+## Desenvolvimento Local
+
+### 1) Instalar dependencias
 
 ```bash
 npm install
-```
-
-2. Instale as dependências das Cloud Functions:
-
-```bash
 cd functions
 npm install
 cd ..
 ```
 
-3. Copie o arquivo de ambiente:
+### 2) Configurar ambiente
 
 ```bash
-cp .env.example .env
+copy .env.example .env
 ```
 
-4. Inicie os emuladores:
+### 3) Subir emuladores
 
 ```bash
 npm run emulators
 ```
 
-5. Em outro terminal, rode o seed de dados:
+### 4) Seed dev
 
 ```bash
 npm run seed
 ```
 
-6. Inicie o app:
+### 5) Rodar app
 
 ```bash
-npm start
+npm run start:dev
 ```
 
-Depois escolha Android/iOS/Web conforme o Expo mostrar.
-
-## Logins dev criados pelo seed
-
-| Perfil | E-mail | Senha |
-|---|---|---|
-| Admin | admin@dev.local | 123456 |
-| Vendedor | vendedor@dev.local | 123456 |
-| Cliente | cliente@dev.local | 123456 |
-
-No app, em modo desenvolvimento, a tela de login mostra botões rápidos para entrar como cada perfil.
-
-## Principais fluxos implementados
-
-- Autenticação por Firebase Auth.
-- Carregamento do perfil em `usuarios/{uid}`.
-- Navegação condicional por perfil.
-- Login dev controlado por flag.
-- Listagem de sorteios ativos/inativos.
-- Edição/criação de sorteios pelo Admin.
-- Lista de vendedores, detalhe do vendedor e resumo de distribuição/vendas.
-- Badge de pendências do Vendedor em tempo real.
-- Criação de cliente sem derrubar sessão do vendedor via Cloud Function `criarCliente`.
-- Criação de venda via Cloud Function `criarVenda` com transação.
-- Confirmação/cancelamento de pagamento via transação.
-- Expiração automática de pendências por Cloud Scheduler.
-- Sorteio oficial com `crypto.randomInt` na Cloud Function `realizarSorteio`.
-- Exportação CSV básica por Cloud Function `exportarVendasCsv`.
-- Regras Firestore com leitura por perfil e escrita sensível bloqueada no cliente.
-
-## Comandos úteis
+Opcao recomendada (tudo em um comando):
 
 ```bash
-npm start              # inicia Expo
-npm run android        # abre no Android
-npm run emulators      # sobe Auth, Firestore e Functions em modo local
-npm run seed           # cria usuários e dados fake no emulador
-npm run lint           # validação simples do JS
+npm run dev:up
 ```
 
-## Próximos passos recomendados
+O `dev:up` faz:
 
-1. Criar o projeto Firebase real e preencher `.env` com as chaves.
-2. Publicar as Functions com `firebase deploy --only functions`.
-3. Publicar regras e índices: `firebase deploy --only firestore`.
-4. Substituir o logo placeholder por `assets/logo.png`.
-5. Ajustar máscaras de CPF/telefone e validações específicas do seu negócio.
-6. Adaptar a identidade visual para ficar igual às telas enviadas.
+- sobe emuladores (se nao estiverem ativos),
+- valida portas (`9199`, `8180`, `5101`, `4100`),
+- executa seed idempotente,
+- inicia o Expo em modo dev.
+
+Variantes:
+
+```bash
+npm run dev:up:clean   # limpa portas antes de subir
+npm run dev:infra      # sobe infra + seed sem abrir Expo
+```
+
+Para conectar no projeto real:
+
+```bash
+npm run start:prod
+```
+
+## Login Dev
+
+Em modo de desenvolvimento, a tela de login mostra botoes de acesso rapido.
+
+Auto-recuperacao implementada:
+
+- Se os usuarios dev nao existirem no Auth Emulator, o app executa `bootstrapDevData` automaticamente e tenta login novamente.
+- Isso evita o erro recorrente de `Usuario nao encontrado` quando a base local foi limpa.
+
+Contas criadas pelo seed:
+
+- Admin: `admin@dev.local` / `123456`
+- Vendedor: `vendedor@dev.local` / `123456`
+- Cliente: `cliente@dev.local` / `123456`
+
+Variavel usada no bootstrap dev:
+
+- `EXPO_PUBLIC_DEV_BOOTSTRAP_SECRET` (deve combinar com `DEV_BOOTSTRAP_SECRET` nas Functions; por padrao: `estilo-local-bootstrap`).
+
+## Fluxos principais
+
+- Criacao de cliente sem derrubar sessao do vendedor
+- Venda transacional com reserva de numero
+- Confirmacao/cancelamento de pendencias
+- Expiracao automatica de pendencias
+- Sorteio oficial com aleatoriedade no backend
+- Exportacao CSV de vendas pagas
+- Dashboard com metricas agregadas
+- Push de teste e notificacoes automaticas de mudanca de status de venda

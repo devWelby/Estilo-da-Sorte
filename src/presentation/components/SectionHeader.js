@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../../constants/colors';
 
 export default function SectionHeader({ title, expanded, onPress, right }) {
@@ -8,7 +9,11 @@ export default function SectionHeader({ title, expanded, onPress, right }) {
       <Text style={styles.title}>{title}</Text>
       <View style={styles.right}>
         {right}
-        <Text style={styles.arrow}>{expanded ? '⌄' : '›'}</Text>
+        <MaterialCommunityIcons
+          name={expanded ? 'chevron-up' : 'chevron-right'}
+          size={28}
+          color={colors.text}
+        />
       </View>
     </Pressable>
   );
@@ -17,7 +22,7 @@ export default function SectionHeader({ title, expanded, onPress, right }) {
 const styles = StyleSheet.create({
   row: {
     marginTop: 20,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
     flexDirection: 'row',
@@ -25,7 +30,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between'
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '900',
     color: colors.text
   },
@@ -33,9 +38,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10
-  },
-  arrow: {
-    fontSize: 36,
-    color: colors.text
   }
 });

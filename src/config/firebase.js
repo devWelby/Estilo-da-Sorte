@@ -56,6 +56,26 @@ function getEmulatorHost() {
   return Platform.OS === 'android' ? '10.0.2.2' : '127.0.0.1';
 }
 
+function isLikelyProductionProject(projectId) {
+  if (!projectId) return false;
+  return !/(dev|test|staging|local|emulator)/i.test(projectId);
+}
+
+if (ENV.useEmulators && !__DEV__) {
+  throw new Error('Modo emulador habilitado fora de desenvolvimento. Ajuste EXPO_PUBLIC_USE_FIREBASE_EMULATORS=false.');
+}
+
+if (
+  __DEV__
+  && ENV.useEmulators
+  && isLikelyProductionProject(ENV.firebase.projectId)
+  && !ENV.allowProdProjectWithEmulators
+) {
+  throw new Error(
+    `Guard anti-producao: projeto "${ENV.firebase.projectId}" bloqueado no modo emulador. Use um projectId de dev/test ou habilite EXPO_PUBLIC_ALLOW_PROD_PROJECT_WITH_EMULATORS=true apenas em ambiente local.`
+  );
+}
+
 if (__DEV__ && ENV.useEmulators) {
   const host = getEmulatorHost();
   try {

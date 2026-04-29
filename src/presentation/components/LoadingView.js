@@ -5,7 +5,9 @@ import { colors } from '../../constants/colors';
 export default function LoadingView({ message = 'Carregando...' }) {
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.loaderRing}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
       <Text style={styles.text}>{message}</Text>
     </View>
   );
@@ -18,9 +20,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
+  loaderRing: {
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF1F3',
+    borderWidth: 1,
+    borderColor: '#FAD0D5'
+  },
   text: {
     marginTop: 12,
-    color: colors.text,
-    fontWeight: '700'
+    color: colors.primary,
+    fontWeight: '800'
   }
 });

@@ -6,10 +6,10 @@ export async function shareSaleReceipt(venda) {
   const content = [
     'ESTILO DA SORTE',
     `Venda: ${venda.id || '-'}`,
-    `Número: ${venda.numero}`,
+    `Numero: ${venda.numero}`,
     `Valor: ${formatCurrency(venda.valor)}`,
-    `Status: ${venda.statusPagamento}`,
-    `Data: ${formatDate(venda.createdAt)}`
+    `Status: ${venda.status || venda.statusPagamento || '-'}`,
+    `Data: ${formatDate(venda.criadoEm || venda.createdAt)}`
   ].join('\n');
 
   const fileUri = `${FileSystem.cacheDirectory}comprovante-${venda.id || Date.now()}.txt`;
